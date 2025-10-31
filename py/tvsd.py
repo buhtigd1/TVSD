@@ -327,47 +327,23 @@ def extract_m3u8(driver, link):
     except Exception:
         return None
 
-from datetime import datetime
-import pytz
-
+# --- Main Execution ---
 def main():
-    try:
-        print("# Script started")
+    driver = setup_driver()
+    print('#EXTM3U url-tvg="https://raw.githubusercontent.com/buhtigd1/TVSD/main/en/tvsd.xml.gz"')
 
-        # Get current time in UTC+7
-        tz = pytz.timezone("Asia/Jakarta")
-        timestamp = datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S %Z")
-        print(f"# Timestamp: {timestamp}")
+    for name, link in get_channel_links(driver, "https://thetvapp.to/"):
+        m3u8_url = extract_m3u8(driver, link)
+        if not m3u8_url:
+            m3u8_url = "https://raw.githubusercontent.com/buhtigd1/TVSD/main/off/offline.mp4"
 
-        driver = setup_driver()
-        print("# WebDriver initialized")
+        logo_url = channel_logos.get(name, "")
+        group_title = group_overrides.get(name, "Others")
 
-        channels = get_channel_links(driver, "https://thetvapp.to/")
-        print(f"# Found {len(channels)} channels")
+        print(f'#EXTINF:-1 tvg-ID="{name}" tvg-name="{name}" tvg-logo="{logo_url}" group-title="{group_title}", {name}')
+        print(m3u8_url)
 
-        print(f'#EXTM3U url-tvg="https://raw.githubusercontent.com/buhtigd1/TVSD/main/en/tvsd.xml.gz"')
-        print(f'# Generated at {timestamp}')
-
-        for name, link in channels:
-            print(f"# Processing: {name} - {link}")
-            m3u8_url = extract_m3u8(driver, link)
-            print(f"# Extracted URL: {m3u8_url}")
-
-            if not m3u8_url:
-                m3u8_url = "https://raw.githubusercontent.com/buhtigd1/TVSD/main/off/offline.mp4"
-                print("# Fallback to offline URL")
-
-            logo_url = channel_logos.get(name, "")
-            group_title = group_overrides.get(name, "Others")
-
-            print(f'#EXTINF:-1 tvg-ID="{name}" tvg-name="{name}" tvg-logo="{logo_url}" group-title="{group_title}", {name}')
-            print(m3u8_url)
-
-        driver.quit()
-        print("# WebDriver closed")
-
-    except Exception as e:
-        print(f"# Script failed: {e}")
+    driver.quit()
 
 if __name__ == "__main__":
     main()
