@@ -330,27 +330,44 @@ def extract_m3u8(driver, link):
 from datetime import datetime
 import pytz
 
-# --- Main Execution ---
 def main():
-    # Get current time in UTC+7
-    tz = pytz.timezone("Asia/Jakarta")
-    timestamp = datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S %Z")
+    try:
+        print("# Script started")
 
-    driver = setup_driver()
+        # Get current time in UTC+7
+        tz = pytz.timezone("Asia/Jakarta")
+        timestamp = datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S %Z")
+        print(f"# Timestamp: {timestamp}")
 
-    # Print M3U header with timestamp
-    print(f'#EXTM3U url-tvg="https://raw.githubusercontent.com/buhtigd1/TVSD/main/en/tvsd.xml.gz"')
-    print(f'# Generated at {timestamp}')
+        driver = setup_driver()
+        print("# WebDriver initialized")
 
-    for name, link in get_channel_links(driver, "https://thetvapp.to/"):
-        m3u8_url = extract_m3u8(driver, link)
-        if not m3u8_url:
-            m3u8_url = "https://raw.githubusercontent.com/buhtigd1/TVSD/main/off/offline.mp4"
+        channels = get_channel_links(driver, "https://thetvapp.to/")
+        print(f"# Found {len(channels)} channels")
 
-        logo_url = channel_logos.get(name, "")
-        group_title = group_overrides.get(name, "Others")
+        print(f'#EXTM3U url-tvg="https://raw.githubusercontent.com/buhtigd1/TVSD/main/en/tvsd.xml.gz"')
+        print(f'# Generated at {timestamp}')
 
-        print(f'#EXTINF:-1 tvg-ID="{name}" tvg-name="{name}" tvg-logo="{logo_url}" group-title="{group_title}", {name}')
-        print(m3u8_url)
+        for name, link in channels:
+            print(f"# Processing: {name} - {link}")
+            m3u8_url = extract_m3u8(driver, link)
+            print(f"# Extracted URL: {m3u8_url}")
 
-    driver.quit()
+            if not m3u8_url:
+                m3u8_url = "https://raw.githubusercontent.com/buhtigd1/TVSD/main/off/offline.mp4"
+                print("# Fallback to offline URL")
+
+            logo_url = channel_logos.get(name, "")
+            group_title = group_overrides.get(name, "Others")
+
+            print(f'#EXTINF:-1 tvg-ID="{name}" tvg-name="{name}" tvg-logo="{logo_url}" group-title="{group_title}", {name}')
+            print(m3u8_url)
+
+        driver.quit()
+        print("# WebDriver closed")
+
+    except Exception as e:
+        print(f"# Script failed: {e}")
+
+if __name__ == "__main__":
+    main()
