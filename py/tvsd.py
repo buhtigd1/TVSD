@@ -312,19 +312,48 @@ def get_channel_links(driver, url):
 def extract_m3u8(driver, link):
     try:
         driver.get(link)
-        wait = WebDriverWait(driver, 5)
+        wait = WebDriverWait(driver, 10)
+
+        # Try both button IDs
         try:
             video_button = wait.until(EC.element_to_be_clickable((By.ID, 'loadVideoBtn')))
         except:
             video_button = wait.until(EC.element_to_be_clickable((By.ID, 'loadVideoBtnTwo')))
         video_button.click()
-        time.sleep(5)
 
+        # Wait longer for stream to load
+        time.sleep(8)
+
+        # Try direct access to video element
+        m3u8_url = driver.execute_script("""
+            let videos = document.querySelectorAll('video');
+            for (let v of videos) {
+                if (v.src && v.src.includes('.m3u8')) return v.src;
+            }
+            if (window.player && window.player.src && window.player.src.includes('.m3u8')) {
+                return window.player.src;
+            }
+            return null;
+        """)
+
+        if m3u8_url:
+            print(f"# Found via video tag: {m3u8_url}")
+            return m3u8_url
+
+        # Fallback: scan performance entries
         network_data = driver.execute_script("return JSON.stringify(performance.getEntries());")
         requests = json.loads(network_data)
         m3u8_urls = [r["name"] for r in requests if ".m3u8" in r["name"]]
-        return m3u8_urls[0] if m3u8_urls else None
-    except Exception:
+
+        if m3u8_urls:
+            print(f"# Found via performance: {m3u8_urls}")
+            return m3u8_urls[0]
+
+        print("# No .m3u8 found in performance entries")
+        return None
+
+    except Exception as e:
+        print(f"# M3U8 extraction failed: {e}")
         return None
 
 # --- Main Execution ---
