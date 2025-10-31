@@ -274,112 +274,76 @@ group_overrides = {
     "WNYW (New York) FOX East": "News"
 }
 
-chrome_service = Service(ChromeDriverManager(chrome_type=ChromeType.CHROMIUM).install())
+# --- Setup WebDriver ---
+def setup_driver():
+    chrome_service = Service(ChromeDriverManager(chrome_type=ChromeType.CHROMIUM).install())
+    chrome_options = webdriver.ChromeOptions()
+    chrome_options.add_argument("--headless")
+    chrome_options.add_argument("--disable-gpu")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    chrome_options.add_argument("start-maximized")
+    chrome_options.add_argument("disable-infobars")
+    chrome_options.add_argument("--disable-extensions")
+    chrome_options.add_argument("--crash-dumps-dir=/tmp")
+    chrome_options.add_argument(f"user-agent={random.choice(user_agents)}")
 
-# Set Chrome options
-chrome_options = webdriver.ChromeOptions()
-chrome_options.add_argument("--headless")
-chrome_options.add_argument("--disable-gpu")
-chrome_options.add_argument("--no-sandbox")
-chrome_options.add_argument("--disable-dev-shm-usage")
-chrome_options.add_argument("start-maximized")
-chrome_options.add_argument("disable-infobars")
-chrome_options.add_argument("--disable-extensions")
-chrome_options.add_argument("--crash-dumps-dir=/tmp")
+    driver = webdriver.Chrome(service=chrome_service, options=chrome_options)
 
-# Randomly select a user agent
-user_agent = random.choice(user_agents)
-chrome_options.add_argument(f"user-agent={user_agent}")
+    stealth(driver,
+        languages=["en-US", "en"],
+        vendor="Google Inc.",
+        platform="Win32",
+        webgl_vendor="Intel Inc.",
+        renderer="Intel Iris OpenGL Engine",
+        fix_hairline=True,
+    )
+    return driver
 
-# Initialize the Chrome WebDriver with the specified options
-driver = webdriver.Chrome(service=chrome_service, options=chrome_options)
+# --- Scrape Channel Links ---
+def get_channel_links(driver, url):
+    driver.get(url)
+    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CLASS_NAME, "row")))
+    live_tv_row = driver.find_element(By.XPATH, "//h3[contains(text(), 'Live TV Channels')]/..")
+    links = live_tv_row.find_elements(By.TAG_NAME, "a")
+    return [(link.text.strip(), link.get_attribute("href")) for link in links]
 
-stealth(
-    driver,
-    languages=["en-US", "en"],
-    vendor="Google Inc.",
-    platform="Win32",
-    webgl_vendor="Intel Inc.",
-    renderer="Intel Iris OpenGL Engine",
-    fix_hairline=True,
-)
-
-# Open the webpage
-url = "https://thetvapp.to/"
-driver.get(url)
-
-
-# Wait for the page to load
-wait = WebDriverWait(driver, 10)
-wait.until(EC.presence_of_element_located((By.CLASS_NAME, "row")))
-
-# Find the Live TV Channels row
-live_tv_row = driver.find_element(By.XPATH, "//h3[contains(text(), 'Live TV Channels')]/..")
-
-# Find all links in the Live TV Channels row
-links = live_tv_row.find_elements(By.TAG_NAME, "a")
-
-# Initialize a list to store the links
-live_tv_links = []
-
-# Iterate over each link
-for link in links:
-    # Get the channel name
-    channel_name = link.text.strip()
-
-    # Get the link URL and add it to the list
-    link_url = link.get_attribute("href")
-    live_tv_links.append((channel_name, link_url))
-
-# Print the M3U header with EPG reference
-print('#EXTM3U url-tvg="https://raw.githubusercontent.com/buhtigd1/TVSD/main/en/tvsd.xml.gz"')
-
-# Iterate over each live TV channel link
-for name, link in live_tv_links:
-    # Navigate to the link URL
-    driver.get(link)
-
+# --- Extract M3U8 URL ---
+def extract_m3u8(driver, link):
     try:
-        # Wait for the button to be clickable
+        driver.get(link)
         wait = WebDriverWait(driver, 5)
         try:
-            # Try to find loadVideoBtnOne first
             video_button = wait.until(EC.element_to_be_clickable((By.ID, 'loadVideoBtn')))
         except:
-            # If loadVideoBtnOne is not found, look for loadVideoBtnTwo
             video_button = wait.until(EC.element_to_be_clickable((By.ID, 'loadVideoBtnTwo')))
         video_button.click()
-
-        # Wait for a brief period to allow the page to load and network requests to be made
         time.sleep(5)
 
-        # Get all network requests
-        network_requests = driver.execute_script("return JSON.stringify(performance.getEntries());")
+        network_data = driver.execute_script("return JSON.stringify(performance.getEntries());")
+        requests = json.loads(network_data)
+        m3u8_urls = [r["name"] for r in requests if ".m3u8" in r["name"]]
+        return m3u8_urls[0] if m3u8_urls else None
+    except Exception:
+        return None
 
-        # Convert the string back to a list of dictionaries in Python
-        network_requests = json.loads(network_requests)
+# --- Main Execution ---
+def main():
+    driver = setup_driver()
+    print('#EXTM3U url-tvg="https://raw.githubusercontent.com/buhtigd1/TVSD/main/en/tvsd.xml.gz"')
 
-        # Get the logo URL for the current channel
-        logo_url = channel_logos.get(name)
-
-
-        # Filter out only the URLs containing ".m3u8"
-        m3u8_urls = [request["name"] for request in network_requests if ".m3u8" in request["name"]]
-
-        # Print the collected m3u8 URLs
-        if m3u8_urls:
-            m3u8_url = m3u8_urls[0]
-        else:
+    for name, link in get_channel_links(driver, "https://thetvapp.to/"):
+        m3u8_url = extract_m3u8(driver, link)
+        if not m3u8_url:
             m3u8_url = "https://raw.githubusercontent.com/buhtigd1/TVSD/main/off/offline.mp4"
-    except Exception as e:
-        # If an exception occurs (e.g., button not found), use the default link
-        m3u8_url = "https://raw.githubusercontent.com/buhtigd1/TVSD/main/off/offline.mp4"
 
-    # Print the collected m3u8 URL
-    if m3u8_urls:
-        group_title = group_overrides.get(name, "Others")  # Assign group-title or default to 'Others'
+        logo_url = channel_logos.get(name, "")
+        group_title = group_overrides.get(name, "Others")
+
         print(f'#EXTINF:-1 tvg-ID="{name}" tvg-name="{name}" tvg-logo="{logo_url}" group-title="{group_title}", {name}')
-        print(m3u8_url)  # Print only the first m3u8 URL
+        print(m3u8_url)
 
-# Close the WebDriver
-driver.quit()
+    driver.quit()
+
+if __name__ == "__main__":
+    main()
