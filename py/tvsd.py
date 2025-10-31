@@ -327,10 +327,20 @@ def extract_m3u8(driver, link):
     except Exception:
         return None
 
+from datetime import datetime
+import pytz
+
 # --- Main Execution ---
 def main():
+    # Get current time in UTC+7
+    tz = pytz.timezone("Asia/Jakarta")
+    timestamp = datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S %Z")
+
     driver = setup_driver()
-    print('#EXTM3U url-tvg="https://raw.githubusercontent.com/buhtigd1/TVSD/main/en/tvsd.xml.gz"')
+
+    # Print M3U header with timestamp
+    print(f'#EXTM3U url-tvg="https://raw.githubusercontent.com/buhtigd1/TVSD/main/en/tvsd.xml.gz"')
+    print(f'# Generated at {timestamp}')
 
     for name, link in get_channel_links(driver, "https://thetvapp.to/"):
         m3u8_url = extract_m3u8(driver, link)
@@ -344,6 +354,3 @@ def main():
         print(m3u8_url)
 
     driver.quit()
-
-if __name__ == "__main__":
-    main()
