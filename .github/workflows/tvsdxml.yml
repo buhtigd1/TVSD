@@ -26,17 +26,19 @@ jobs:
 
       - name: Run EPG Script
         run: |
-          python py/tvsdxml.py > en/tvsd.xml
+          python py/tvsdxml.py --days 3 > en/tvsd.xml
         env:
           TZ: America/New_York  # Set the timezone
 
+      - name: Compress XML with gzip (retain original)
+        run: |
+          gzip -c en/tvsd.xml > en/tvsd.xml.gz
 
       - name: Commit and Push Changes
         uses: stefanzweifel/git-auto-commit-action@v4
         with:
           commit_message: "Update token"
           branch: main
-          files: |
-            en/tvsd.xml
+          file_pattern: en/tv.xml en/tv.xml.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
