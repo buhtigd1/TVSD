@@ -1,4 +1,3 @@
-
 name: Live EPG
 
 on:
@@ -39,6 +38,6 @@ jobs:
         with:
           commit_message: "Update token"
           branch: main
-          file_pattern: en/tv.xml en/tv.xml.gz
+          file_pattern: en/tvsd.xml en/tvsd.xml.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
